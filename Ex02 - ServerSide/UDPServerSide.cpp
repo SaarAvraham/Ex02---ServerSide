@@ -99,6 +99,7 @@ void recieveFromClient(SOCKET io_Socket,char * i_RecvBuff,sockaddr &io_ClientAdd
 
 	i_RecvBuff[bytesRecv] = '\0'; //add the null-terminating to make it a string
 	cout << "Time Server: Recieved: " << bytesRecv << " bytes of \"" << i_RecvBuff << "\" message.\n";
+
 }
 
 void startService()
