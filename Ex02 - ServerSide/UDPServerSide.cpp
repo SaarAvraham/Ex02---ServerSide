@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 using namespace std;
 // Don't forget to include "Ws2_32.lib" in the library list.
@@ -7,7 +8,7 @@ using namespace std;
 
 #define TIME_PORT	27015
 
-void main()
+bool prepareForService(SOCKET &io_Socket, sockaddr_in &io_SocketService)
 {
 	// Initialize Winsock (Windows Sockets).
 
@@ -23,6 +24,7 @@ void main()
 	if (NO_ERROR != WSAStartup(MAKEWORD(2, 2), &wsaData))
 	{
 		cout << "Time Server: Error at WSAStartup()\n";
+		return false;
 	}
 
 	// Server side:
@@ -34,7 +36,7 @@ void main()
 	// For this application:	use the Internet address family (AF_INET), 
 	//							datagram sockets (SOCK_DGRAM), 
 	//							and the UDP/IP protocol (IPPROTO_UDP).
-	SOCKET m_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	io_Socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
 	// Check for errors to ensure that the socket is a valid socket.
 	// Error detection is a key part of successful networking code. 
@@ -42,11 +44,11 @@ void main()
 	// The "if" statement in the previous code is used to catch any errors that
 	// may have occurred while creating the socket. WSAGetLastError returns an 
 	// error number associated with the last error that occurred.
-	if (INVALID_SOCKET == m_socket)
+	if (INVALID_SOCKET == io_Socket)
 	{
 		cout << "Time Server: Error at socket(): " << WSAGetLastError() << endl;
 		WSACleanup();
-		return;
+		return false;
 	}
 
 	// For a server to communicate on a network, it must first bind the socket to 
@@ -54,19 +56,17 @@ void main()
 
 	// Need to assemble the required data for connection in sockaddr structure.
 
-	// Create a sockaddr_in object called serverService. 
-	sockaddr_in serverService;
 	// Address family (must be AF_INET - Internet address family).
-	serverService.sin_family = AF_INET;
+	io_SocketService.sin_family = AF_INET;
 	// IP address. The sin_addr is a union (s_addr is a unsigdned long (4 bytes) data type).
 	// INADDR_ANY means to listen on all interfaces.
 	// inet_addr (Internet address) is used to convert a string (char *) into unsigned int.
 	// inet_ntoa (Internet address) is the reverse function (converts unsigned int to char *)
 	// The IP address 127.0.0.1 is the host itself, it's actually a loop-back.
-	serverService.sin_addr.s_addr = INADDR_ANY;	//inet_addr("127.0.0.1");
+	io_SocketService.sin_addr.s_addr = INADDR_ANY;	//inet_addr("127.0.0.1");
 												// IP Port. The htons (host to network - short) function converts an
 												// unsigned short from host to TCP/IP network byte order (which is big-endian).
-	serverService.sin_port = htons(TIME_PORT);
+	io_SocketService.sin_port = htons(TIME_PORT);
 
 	// Bind the socket for client's requests.
 
@@ -74,11 +74,44 @@ void main()
 	// The function uses the socket handler, the sockaddr structure (which
 	// defines properties of the desired connection) and the length of the
 	// sockaddr structure (in bytes).
-	if (SOCKET_ERROR == bind(m_socket, (SOCKADDR *)&serverService, sizeof(serverService)))
+	if (SOCKET_ERROR == bind(io_Socket, (SOCKADDR *)&io_SocketService, sizeof(io_SocketService)))
 	{
 		cout << "Time Server: Error at bind(): " << WSAGetLastError() << endl;
-		closesocket(m_socket);
+		closesocket(io_Socket);
 		WSACleanup();
+		return false;
+	}
+
+	return true;
+}
+
+void recieveFromClient(SOCKET io_Socket,char * i_RecvBuff,sockaddr &io_ClientAddress, int &io_ClientAddressLen)
+{
+	int bytesRecv = 0;
+	bytesRecv = recvfrom(io_Socket, i_RecvBuff, 255, 0, &io_ClientAddress, &io_ClientAddressLen);
+	if (SOCKET_ERROR == bytesRecv)
+	{
+		cout << "Time Server: Error at recvfrom(): " << WSAGetLastError() << endl;
+		closesocket(io_Socket);
+		WSACleanup();
+		return;
+	}
+
+	i_RecvBuff[bytesRecv] = '\0'; //add the null-terminating to make it a string
+	cout << "Time Server: Recieved: " << bytesRecv << " bytes of \"" << i_RecvBuff << "\" message.\n";
+}
+
+void startService()
+{
+	SOCKET m_socket;
+	sockaddr_in serverService;
+	int bytesSent = 0;
+	int bytesRecv = 0;
+	char sendBuff[255];
+	char recvBuff[255];
+
+	if (!prepareForService(m_socket, serverService))
+	{
 		return;
 	}
 
@@ -87,10 +120,7 @@ void main()
 	// Send and receive data.
 	sockaddr client_addr;
 	int client_addr_len = sizeof(client_addr);
-	int bytesSent = 0;
-	int bytesRecv = 0;
-	char sendBuff[255];
-	char recvBuff[255];
+
 
 	// Get client's requests and answer them.
 	// The recvfrom function receives a datagram and stores the source address.
@@ -103,18 +133,8 @@ void main()
 
 	while (true)
 	{
-		bytesRecv = recvfrom(m_socket, recvBuff, 255, 0, &client_addr, &client_addr_len);
-		if (SOCKET_ERROR == bytesRecv)
-		{
-			cout << "Time Server: Error at recvfrom(): " << WSAGetLastError() << endl;
-			closesocket(m_socket);
-			WSACleanup();
-			return;
-		}
-
-		recvBuff[bytesRecv] = '\0'; //add the null-terminating to make it a string
-		cout << "Time Server: Recieved: " << bytesRecv << " bytes of \"" << recvBuff << "\" message.\n";
-
+		
+		recieveFromClient(m_socket, recvBuff, client_addr, client_addr_len);
 		// Answer client's request by the current time.
 
 		// Get the current time.
@@ -142,4 +162,9 @@ void main()
 	cout << "Time Server: Closing Connection.\n";
 	closesocket(m_socket);
 	WSACleanup();
+}
+
+void main()
+{
+	startService();
 }
