@@ -5,8 +5,11 @@ using namespace std;
 #include <winsock2.h>
 #include <string.h>
 #include <time.h>
+#include <stdlib.h>
+#include <sstream>
 
 #define TIME_PORT	27015
+#define BUFFER_SIZE	255
 
 bool prepareForService(SOCKET &io_Socket, sockaddr_in &io_SocketService)
 {
@@ -85,7 +88,7 @@ bool prepareForService(SOCKET &io_Socket, sockaddr_in &io_SocketService)
 	return true;
 }
 
-void recieveFromClient(SOCKET io_Socket,char * i_RecvBuff,sockaddr &io_ClientAddress, int &io_ClientAddressLen)
+bool recieveFromClient(SOCKET io_Socket,char * i_RecvBuff,sockaddr &io_ClientAddress, int &io_ClientAddressLen)
 {
 	int bytesRecv = 0;
 	bytesRecv = recvfrom(io_Socket, i_RecvBuff, 255, 0, &io_ClientAddress, &io_ClientAddressLen);
@@ -94,21 +97,133 @@ void recieveFromClient(SOCKET io_Socket,char * i_RecvBuff,sockaddr &io_ClientAdd
 		cout << "Time Server: Error at recvfrom(): " << WSAGetLastError() << endl;
 		closesocket(io_Socket);
 		WSACleanup();
-		return;
+		return false;
 	}
 
 	i_RecvBuff[bytesRecv] = '\0'; //add the null-terminating to make it a string
 	cout << "Time Server: Recieved: " << bytesRecv << " bytes of \"" << i_RecvBuff << "\" message.\n";
+
+	return true;
+}
+
+bool sendAnswerToClient(SOCKET io_Socket, char* i_SendBuff, int i_SendBuffLen, sockaddr i_ClientAddress, int i_ClientAddressLen)
+{
+	int bytesSent = 0;
+
+	bytesSent = sendto(io_Socket, i_SendBuff, (int)strlen(i_SendBuff), 0, (const sockaddr *)&i_ClientAddress, i_ClientAddressLen);
+	if (SOCKET_ERROR == bytesSent)
+	{
+		cout << "Time Server: Error at sendto(): " << WSAGetLastError() << endl;
+		closesocket(io_Socket);
+		WSACleanup();
+		return false;
+	}
+
+	cout << "Time Server: Sent: " << bytesSent << "\\" << strlen(i_SendBuff) << " bytes of \"" << i_SendBuff << "\" message.\n";
+
+	return true;
+}
+
+void GetTime(char * o_SendBuff)	// 1
+{
+	// Get the current time.
+	time_t timer;
+	time(&timer);
+	// Parse the current time to printable string.
+	strcpy(o_SendBuff, ctime(&timer));
+	o_SendBuff[strlen(o_SendBuff) - 1] = '\0'; //to remove the new-line from the created string
+}
+
+void GetTimeWithoutDate(char * o_SendBuff)	// 2
+{
+	time_t timer;
+
+	time(&timer);
+	strftime(o_SendBuff, 255, "%H:%M:%S", localtime(&timer));
+}
+
+void GetTimeSinceEpoch(char * o_SendBuff)	// 3
+{
+	time_t timer = time(nullptr);
+	int secs = (int)timer;
+	sprintf(o_SendBuff, "%d", secs);
+}
+
+void GetClientToServerDelayEstimation(char * o_SendBuff)	// 4
+{
+
+}
+
+void MeasureRTT(char * O_SendBuff)		// 5
+{
+
+}
+
+void GetTimeWithoutDateOrSeconds(char * o_SendBuff)		// 6
+{
+	time_t timer;
+
+	time(&timer);
+	strftime(o_SendBuff, 255, "%H:%M", localtime(&timer));
+}
+
+void GetYear(char * o_SendBuff)		// 7
+{
+	time_t timer;
+
+	time(&timer);
+	strftime(o_SendBuff, 255, "%Y", localtime(&timer));
+}
+
+void GetMonthAndDay(char * o_SendBuff)		// 8
+{
+	time_t timer;
+
+	time(&timer);
+	strftime(o_SendBuff, 255, "%d/%m", localtime(&timer));
+}
+
+void GetSecondsSinceBeginingOfMonth(char * o_SendBuff)		// 9
+{
+	int secsSinceBeginingOfMonth;
+	time_t timer1 = time(&timer1), timer2;
+	tm* currTime = localtime(&timer1);
+	tm* beginingOfMonth = localtime(&timer1);
+
+	beginingOfMonth->tm_mday = 1;
+	beginingOfMonth->tm_hour = 0;
+	beginingOfMonth->tm_min = 0;
+	beginingOfMonth->tm_sec = 0;
+	timer2 = mktime(beginingOfMonth);
+	secsSinceBeginingOfMonth = (int)timer1 - (int)timer2;
+	sprintf(o_SendBuff, "%d", secsSinceBeginingOfMonth);
+}
+
+void GetDayOfYear(char *o_SendBuff)		// 10
+{
+	time_t timer;
+
+	time(&timer);
+	strftime(o_SendBuff, 255, "%j", localtime(&timer));
+}
+
+void GetDaylightSavings(char *o_SendBuff)		// 11
+{
+	time_t timer = time(&timer);
+	tm* localTime = localtime(&timer);
+
+	sprintf(o_SendBuff, "%d", localTime->tm_isdst);
 }
 
 void startService()
 {
 	SOCKET m_socket;
 	sockaddr_in serverService;
-	int bytesSent = 0;
 	int bytesRecv = 0;
 	char sendBuff[255];
 	char recvBuff[255];
+	int userChoice;
+	bool sendMsg = true;
 
 	if (!prepareForService(m_socket, serverService))
 	{
@@ -117,10 +232,8 @@ void startService()
 
 	// Waits for incoming requests from clients.
 
-	// Send and receive data.
 	sockaddr client_addr;
 	int client_addr_len = sizeof(client_addr);
-
 
 	// Get client's requests and answer them.
 	// The recvfrom function receives a datagram and stores the source address.
@@ -133,29 +246,70 @@ void startService()
 
 	while (true)
 	{
-		
-		recieveFromClient(m_socket, recvBuff, client_addr, client_addr_len);
-		// Answer client's request by the current time.
-
-		// Get the current time.
-		time_t timer;
-		time(&timer);
-		// Parse the current time to printable string.
-		strcpy(sendBuff, ctime(&timer));
-		sendBuff[strlen(sendBuff) - 1] = '\0'; //to remove the new-line from the created string
-
-											   // Sends the answer to the client, using the client address gathered
-											   // by recvfrom. 
-		bytesSent = sendto(m_socket, sendBuff, (int)strlen(sendBuff), 0, (const sockaddr *)&client_addr, client_addr_len);
-		if (SOCKET_ERROR == bytesSent)
+		if (!recieveFromClient(m_socket, recvBuff, client_addr, client_addr_len))
 		{
-			cout << "Time Server: Error at sendto(): " << WSAGetLastError() << endl;
-			closesocket(m_socket);
-			WSACleanup();
 			return;
 		}
+		// Answer client's request by the current time.
 
-		cout << "Time Server: Sent: " << bytesSent << "\\" << strlen(sendBuff) << " bytes of \"" << sendBuff << "\" message.\n";
+		userChoice = stoi(recvBuff);
+		switch (userChoice)
+		{
+		case 1:
+			GetTime(sendBuff);                    // V
+			sendMsg = true;
+			break;
+		case 2:
+			GetTimeWithoutDate(sendBuff);		 // V
+			sendMsg = true;
+			break;
+		case 3:
+			GetTimeSinceEpoch(sendBuff);         // V
+			sendMsg = true;
+			break;
+		case 4:
+			GetClientToServerDelayEstimation(sendBuff);
+			sendMsg = true;
+			break;
+		case 5:
+			MeasureRTT(sendBuff);
+			sendMsg = true;
+			break;
+		case 6:
+			GetTimeWithoutDateOrSeconds(sendBuff);   // V
+			sendMsg = true;
+			break;
+		case 7:
+			GetYear(sendBuff);					 // V
+			sendMsg = true;
+			break;
+		case 8:
+			GetMonthAndDay(sendBuff);			// V
+			sendMsg = true;
+			break;
+		case 9:
+			GetSecondsSinceBeginingOfMonth(sendBuff);	//V
+			sendMsg = true;
+			break;
+		case 10:
+			GetDayOfYear(sendBuff);				// V
+			sendMsg = true;
+		case 11:
+			GetDaylightSavings(sendBuff);		// V
+			sendMsg = true;
+			break;
+		default:
+			sendMsg = false;
+			break;
+		}
+		
+		if (sendMsg)
+		{
+			if (!sendAnswerToClient(m_socket, sendBuff, (int)strlen(sendBuff), client_addr, client_addr_len))
+			{
+				return;
+			}
+		}
 	}
 
 	// Closing connections and Winsock.
