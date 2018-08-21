@@ -91,7 +91,7 @@ bool prepareForService(SOCKET &io_Socket, sockaddr_in &io_SocketService)
 bool recieveFromClient(SOCKET io_Socket,char * i_RecvBuff,sockaddr &io_ClientAddress, int &io_ClientAddressLen)
 {
 	int bytesRecv = 0;
-	bytesRecv = recvfrom(io_Socket, i_RecvBuff, 255, 0, &io_ClientAddress, &io_ClientAddressLen);
+	bytesRecv = recvfrom(io_Socket, i_RecvBuff, BUFFER_SIZE, 0, &io_ClientAddress, &io_ClientAddressLen);
 	if (SOCKET_ERROR == bytesRecv)
 	{
 		cout << "Time Server: Error at recvfrom(): " << WSAGetLastError() << endl;
@@ -139,7 +139,7 @@ void GetTimeWithoutDate(char * o_SendBuff)	// 2
 	time_t timer;
 
 	time(&timer);
-	strftime(o_SendBuff, 255, "%H:%M:%S", localtime(&timer));
+	strftime(o_SendBuff, BUFFER_SIZE, "%H:%M:%S", localtime(&timer));
 }
 
 void GetTimeSinceEpoch(char * o_SendBuff)	// 3
@@ -151,12 +151,15 @@ void GetTimeSinceEpoch(char * o_SendBuff)	// 3
 
 void GetClientToServerDelayEstimation(char * o_SendBuff)	// 4
 {
+	DWORD ticks;
 
+	ticks = GetTickCount();
+	sprintf(o_SendBuff, "%d", ticks);
 }
 
 void MeasureRTT(char * O_SendBuff)		// 5
 {
-
+	sprintf(O_SendBuff, "");
 }
 
 void GetTimeWithoutDateOrSeconds(char * o_SendBuff)		// 6
@@ -164,7 +167,7 @@ void GetTimeWithoutDateOrSeconds(char * o_SendBuff)		// 6
 	time_t timer;
 
 	time(&timer);
-	strftime(o_SendBuff, 255, "%H:%M", localtime(&timer));
+	strftime(o_SendBuff, BUFFER_SIZE, "%H:%M", localtime(&timer));
 }
 
 void GetYear(char * o_SendBuff)		// 7
@@ -172,7 +175,7 @@ void GetYear(char * o_SendBuff)		// 7
 	time_t timer;
 
 	time(&timer);
-	strftime(o_SendBuff, 255, "%Y", localtime(&timer));
+	strftime(o_SendBuff, BUFFER_SIZE, "%Y", localtime(&timer));
 }
 
 void GetMonthAndDay(char * o_SendBuff)		// 8
@@ -180,7 +183,7 @@ void GetMonthAndDay(char * o_SendBuff)		// 8
 	time_t timer;
 
 	time(&timer);
-	strftime(o_SendBuff, 255, "%d/%m", localtime(&timer));
+	strftime(o_SendBuff, BUFFER_SIZE, "%d/%m", localtime(&timer));
 }
 
 void GetSecondsSinceBeginingOfMonth(char * o_SendBuff)		// 9
@@ -204,7 +207,7 @@ void GetDayOfYear(char *o_SendBuff)		// 10
 	time_t timer;
 
 	time(&timer);
-	strftime(o_SendBuff, 255, "%j", localtime(&timer));
+	strftime(o_SendBuff, BUFFER_SIZE, "%j", localtime(&timer));
 }
 
 void GetDaylightSavings(char *o_SendBuff)		// 11
@@ -220,8 +223,8 @@ void startService()
 	SOCKET m_socket;
 	sockaddr_in serverService;
 	int bytesRecv = 0;
-	char sendBuff[255];
-	char recvBuff[255];
+	char sendBuff[BUFFER_SIZE];
+	char recvBuff[BUFFER_SIZE];
 	int userChoice;
 	bool sendMsg = true;
 
@@ -256,46 +259,47 @@ void startService()
 		switch (userChoice)
 		{
 		case 1:
-			GetTime(sendBuff);                    // V
+			GetTime(sendBuff);                  
 			sendMsg = true;
 			break;
 		case 2:
-			GetTimeWithoutDate(sendBuff);		 // V
+			GetTimeWithoutDate(sendBuff);	
 			sendMsg = true;
 			break;
 		case 3:
-			GetTimeSinceEpoch(sendBuff);         // V
+			GetTimeSinceEpoch(sendBuff);        
 			sendMsg = true;
 			break;
 		case 4:
-			GetClientToServerDelayEstimation(sendBuff);
+			GetClientToServerDelayEstimation(sendBuff);    
 			sendMsg = true;
 			break;
 		case 5:
-			MeasureRTT(sendBuff);
+			MeasureRTT(sendBuff);                
 			sendMsg = true;
 			break;
 		case 6:
-			GetTimeWithoutDateOrSeconds(sendBuff);   // V
+			GetTimeWithoutDateOrSeconds(sendBuff);   
 			sendMsg = true;
 			break;
 		case 7:
-			GetYear(sendBuff);					 // V
+			GetYear(sendBuff);					 
 			sendMsg = true;
 			break;
 		case 8:
-			GetMonthAndDay(sendBuff);			// V
+			GetMonthAndDay(sendBuff);			
 			sendMsg = true;
 			break;
 		case 9:
-			GetSecondsSinceBeginingOfMonth(sendBuff);	//V
+			GetSecondsSinceBeginingOfMonth(sendBuff);	
 			sendMsg = true;
 			break;
 		case 10:
-			GetDayOfYear(sendBuff);				// V
+			GetDayOfYear(sendBuff);			
 			sendMsg = true;
+			break;
 		case 11:
-			GetDaylightSavings(sendBuff);		// V
+			GetDaylightSavings(sendBuff);		
 			sendMsg = true;
 			break;
 		default:
@@ -313,7 +317,7 @@ void startService()
 	}
 
 	// Closing connections and Winsock.
-	cout << "Time Server: Closing Connection.\n";
+	// cout << "Time Server: Closing Connection.\n";
 	closesocket(m_socket);
 	WSACleanup();
 }
